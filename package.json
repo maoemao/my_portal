@@ -1,0 +1,36 @@
+{
+  "dependencies": {
+    "@ant-design/icons": "^6.2.5",
+    "@auth/prisma-adapter": "^2.11.2",
+    "@prisma/client": "^5.19.1",
+    "@tanstack/react-query": "^5.101.0",
+    "@types/pg": "^8.20.0",
+    "@types/swagger-ui-react": "^5.18.0",
+    "antd": "^6.4.4",
+    "bcrypt": "^6.0.0",
+    "jsonwebtoken": "^9.0.3",
+    "next": "^15.0.0",
+    "next-auth": "^4.24.14",
+    "pg": "^8.21.0",
+    "prisma": "^5.19.1",
+    "qiankun": "^2.10.16",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "swagger-ui-react": "^5.32.6",
+    "tsx": "^4.22.4",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.0.0"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  }
+}

@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: portal-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: portal
+      POSTGRES_PASSWORD: portal123
+      POSTGRES_DB: portal
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portal"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - portal-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: portal-app
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://portal:portal123@postgres:5432/portal
+      NEXTAUTH_SECRET: your-secret-key-change-in-production
+      NEXTAUTH_URL: http://localhost:3000
+      JWT_SECRET: your-jwt-secret-change-in-production
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    networks:
+      - portal-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  portal-network:
+    driver: bridge
