@@ -173,7 +173,158 @@ my_portal/
 | `/app/:systemCode` | 子系统微应用 | 登录用户 |
 | `/profile` | 个人中心 | 登录用户 |
 | `/systems` | 子系统管理 | ADMIN |
+| `/oauth-clients` | OAuth客户端管理 | ADMIN |
 | `/docs` | API文档 | 公开 |
+
+## 外部应用认证集成
+
+Portal系统提供两种认证集成方式：OAuth2.0授权码模式（推荐）和Token直传模式（简单场景）。
+
+### OAuth2.0 授权码模式（推荐）
+
+#### 1. 注册OAuth客户端
+
+1. 管理员登录Portal
+2. 进入「OAuth客户端管理」页面
+3. 点击「创建」按钮
+4. 填写客户端信息：
+   - **名称**：应用名称
+   - **回调地址**：授权成功后重定向的地址（支持多个）
+   - **权限范围**：需要的用户信息权限（默认 openid profile email）
+
+创建成功后会获得：
+- **Client ID**：客户端标识符
+- **Client Secret**：客户端密钥（请妥善保管）
+
+#### 2. 认证流程
+
+```javascript
+// 1. 重定向到Portal授权页
+const authUrl = `${portalUrl}/api/oauth/authorize?` + new URLSearchParams({
+  client_id: 'your-client-id',
+  redirect_uri: 'https://your-app.com/callback',
+  response_type: 'code',
+  scope: 'openid profile email',
+  state: 'random-state-value' // 用于防止CSRF攻击
+})
+window.location.href = authUrl
+
+// 2. 在回调地址处理授权码
+// https://your-app.com/callback?code=xxx&state=xxx
+
+// 3. 换取Token
+const tokenResponse = await fetch(`${portalUrl}/api/oauth/token`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    client_id: 'your-client-id',
+    client_secret: 'your-client-secret',
+    code: '授权码',
+    grant_type: 'authorization_code',
+    redirect_uri: 'https://your-app.com/callback'
+  })
+})
+const { access_token, refresh_token, expires_in } = await tokenResponse.json()
+
+// 4. 获取用户信息
+const userResponse = await fetch(`${portalUrl}/api/oauth/userinfo`, {
+  headers: { Authorization: `Bearer ${access_token}` }
+})
+const userInfo = await userResponse.json()
+
+// 5. 建立本地会话
+sessionStorage.setItem('user', JSON.stringify(userInfo))
+
+// 6. 刷新Token（当access_token过期时）
+const refreshResponse = await fetch(`${portalUrl}/api/oauth/token`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    client_id: 'your-client-id',
+    client_secret: 'your-client-secret',
+    refresh_token: refresh_token,
+    grant_type: 'refresh_token'
+  })
+})
+```
+
+#### 3. OAuth接口列表
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/oauth/authorize` | GET | 授权请求入口 |
+| `/api/oauth/token` | POST | 获取/刷新Token |
+| `/api/oauth/userinfo` | GET | 获取用户信息 |
+| `/api/oauth/logout` | POST | 登出 |
+
+### Token直传模式（简单场景）
+
+适用于通过qiankun微前端集成的子系统。
+
+#### 1. 通过qiankun props获取
+
+```javascript
+export async function mount(props) {
+  const { token, userInfo } = props
+  
+  // 直接使用用户信息
+  console.log('用户信息:', userInfo)
+  
+  // 使用Token调用Portal API
+  const response = await fetch(`${portalUrl}/api/tokens/validate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token })
+  })
+}
+```
+
+#### 2. 通过全局状态订阅
+
+```javascript
+import { initGlobalState } from 'qiankun'
+
+const actions = initGlobalState({
+  token: '',
+  userInfo: null
+})
+
+actions.onGlobalStateChange((state) => {
+  console.log('全局状态变化:', state)
+  // 更新本地状态
+})
+```
+
+### 示例：Express中间件验证Token
+
+```javascript
+async function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization']
+  const token = authHeader && authHeader.split(' ')[1]
+  
+  if (!token) {
+    return res.status(401).json({ error: '未授权' })
+  }
+  
+  const response = await fetch(`${portalUrl}/api/tokens/validate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token })
+  })
+  
+  if (!response.ok) {
+    return res.status(401).json({ error: 'Token无效' })
+  }
+  
+  const userInfo = await response.json()
+  req.user = userInfo
+  next()
+}
+
+app.get('/api/protected', authenticateToken, (req, res) => {
+  res.json({ message: '受保护资源', user: req.user })
+})
+```
 
 ## 子系统接入指南
 
@@ -190,15 +341,12 @@ my_portal/
 子系统需要支持 qiankun 微前端协议，实现以下生命周期钩子：
 
 ```javascript
-// 子系统入口文件
 export async function bootstrap() {
   console.log('子系统启动')
 }
 
 export async function mount(props) {
   console.log('子系统挂载', props)
-  // props.token - Portal传递的Token
-  // props.userInfo - 用户信息
 }
 
 export async function unmount() {
@@ -213,19 +361,6 @@ export async function unmount() {
 1. **props传递**：mount时通过props获取
 2. **全局状态**：通过qiankun全局状态订阅
 3. **API调用**：`GET /api/tokens/{systemCode}`
-
-### 4. Token验证
-
-子系统调用自身API时，可通过Portal验证Token：
-
-```bash
-POST /api/tokens/validate
-Content-Type: application/json
-
-{
-  "token": "your-token"
-}
-```
 
 ## 数据库模型
 

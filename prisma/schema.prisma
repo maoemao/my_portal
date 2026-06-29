@@ -57,3 +57,44 @@ model Token {
   user      User     @relation(fields: [userId], references: [id])
   system    System   @relation(fields: [systemId], references: [id])
 }
+
+model OAuthClient {
+  id           String     @id @default(uuid())
+  clientId     String     @unique
+  clientSecret String
+  name         String
+  redirectUris String[]
+  scopes       String[]   @default(["openid", "profile", "email"])
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  
+  codes        OAuthCode[]
+  tokens       OAuthToken[]
+}
+
+model OAuthCode {
+  id         String      @id @default(uuid())
+  code       String      @unique
+  clientId   String
+  userId     String
+  redirectUri String
+  expiresAt  DateTime
+  used       Boolean     @default(false)
+  
+  client     OAuthClient @relation(fields: [clientId], references: [id])
+  user       User        @relation(fields: [userId], references: [id])
+}
+
+model OAuthToken {
+  id           String      @id @default(uuid())
+  accessToken  String      @unique
+  refreshToken String      @unique
+  clientId     String
+  userId       String
+  expiresAt    DateTime
+  revoked      Boolean     @default(false)
+  
+  client       OAuthClient @relation(fields: [clientId], references: [id])
+  user         User        @relation(fields: [userId], references: [id])
+}

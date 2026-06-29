@@ -92,6 +92,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       icon: <SettingOutlined />,
       label: <Link href="/systems">子系统管理</Link>,
     })
+    menuItems.push({
+      key: '/oauth-clients',
+      icon: <SettingOutlined />,
+      label: <Link href="/oauth-clients">OAuth客户端</Link>,
+    })
   }
 
   return (
